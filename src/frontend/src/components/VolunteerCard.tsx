@@ -5,11 +5,28 @@ type VolunteerWithId = Volunteer & { id: bigint };
 interface Props {
   volunteer: VolunteerWithId;
   joinDate?: string;
+  designation?: string;
+  overrideName?: string;
+  overridePhone?: string;
+  overrideLocation?: string;
+  overrideStatus?: boolean;
 }
 
-export default function VolunteerCard({ volunteer, joinDate }: Props) {
+export default function VolunteerCard({
+  volunteer,
+  joinDate,
+  designation,
+  overrideName,
+  overridePhone,
+  overrideLocation,
+  overrideStatus,
+}: Props) {
   const volunteerId = `VOL-${String(volunteer.id).padStart(4, "0")}`;
-  const initial = volunteer.name.slice(0, 1).toUpperCase();
+  const displayName = overrideName ?? volunteer.name;
+  const displayPhone = overridePhone ?? volunteer.phone;
+  const displayLocation = overrideLocation ?? volunteer.location;
+  const displayStatus = overrideStatus ?? volunteer.status;
+  const initial = displayName.slice(0, 1).toUpperCase();
   const date = joinDate ?? new Date().toLocaleDateString("en-IN");
 
   return (
@@ -101,6 +118,24 @@ export default function VolunteerCard({ volunteer, joinDate }: Props) {
           >
             VOLUNTEER
           </div>
+          {designation && (
+            <div
+              style={{
+                background: "rgba(255,255,255,0.1)",
+                borderRadius: 4,
+                padding: "2px 8px",
+                fontSize: 9,
+                fontWeight: 600,
+                letterSpacing: 0.8,
+                color: "rgba(255,255,255,0.8)",
+                textAlign: "center",
+                maxWidth: 80,
+                wordBreak: "break-word",
+              }}
+            >
+              {designation}
+            </div>
+          )}
           <div
             style={{
               fontSize: 10,
@@ -136,7 +171,7 @@ export default function VolunteerCard({ volunteer, joinDate }: Props) {
               lineHeight: 1.2,
             }}
           >
-            {volunteer.name}
+            {displayName}
           </div>
 
           <div
@@ -147,7 +182,7 @@ export default function VolunteerCard({ volunteer, joinDate }: Props) {
               marginTop: 4,
             }}
           >
-            {volunteer.phone && (
+            {displayPhone && (
               <div
                 style={{
                   fontSize: 11,
@@ -157,10 +192,10 @@ export default function VolunteerCard({ volunteer, joinDate }: Props) {
                 }}
               >
                 <span>📞</span>
-                <span>{volunteer.phone}</span>
+                <span>{displayPhone}</span>
               </div>
             )}
-            {volunteer.location && (
+            {displayLocation && (
               <div
                 style={{
                   fontSize: 11,
@@ -170,7 +205,7 @@ export default function VolunteerCard({ volunteer, joinDate }: Props) {
                 }}
               >
                 <span>📍</span>
-                <span>{volunteer.location}</span>
+                <span>{displayLocation}</span>
               </div>
             )}
             <div
@@ -190,19 +225,21 @@ export default function VolunteerCard({ volunteer, joinDate }: Props) {
             <span
               style={{
                 display: "inline-block",
-                background: volunteer.status
+                background: displayStatus
                   ? "rgba(46,213,115,0.25)"
                   : "rgba(255,71,87,0.25)",
-                border: `1px solid ${volunteer.status ? "rgba(46,213,115,0.5)" : "rgba(255,71,87,0.5)"}`,
+                border: `1px solid ${
+                  displayStatus ? "rgba(46,213,115,0.5)" : "rgba(255,71,87,0.5)"
+                }`,
                 borderRadius: 4,
                 padding: "2px 8px",
                 fontSize: 10,
                 fontWeight: 700,
-                color: volunteer.status ? "#2ed573" : "#ff4757",
+                color: displayStatus ? "#2ed573" : "#ff4757",
                 letterSpacing: 0.8,
               }}
             >
-              {volunteer.status ? "● ACTIVE" : "● INACTIVE"}
+              {displayStatus ? "● ACTIVE" : "● INACTIVE"}
             </span>
           </div>
         </div>

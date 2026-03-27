@@ -18,15 +18,17 @@ import {
   CreditCard,
   Loader2,
   MapPin,
+  Pencil,
   Phone,
   Plus,
   Printer,
   Trash2,
   UserPlus,
   Users,
+  X,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Volunteer } from "../backend";
 import VolunteerCard from "../components/VolunteerCard";
@@ -37,6 +39,29 @@ import {
 } from "../hooks/useQueries";
 
 type VolunteerWithId = Volunteer & { id: bigint };
+
+// ---------- Card override storage ----------
+interface CardOverride {
+  designation?: string;
+  name?: string;
+  phone?: string;
+  location?: string;
+  status?: boolean;
+}
+
+const cardKey = (id: string) => `volunteer_card_${id}`;
+
+function loadCardOverride(id: string): CardOverride {
+  try {
+    return JSON.parse(localStorage.getItem(cardKey(id)) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveCardOverride(id: string, data: CardOverride) {
+  localStorage.setItem(cardKey(id), JSON.stringify(data));
+}
 
 // ---------- Attendance helpers ----------
 type AttendanceStatus = "present" | "absent";
@@ -199,6 +224,32 @@ function AttendanceDialog({ volunteer }: { volunteer: VolunteerWithId }) {
 
 // ---------- Card Dialog ----------
 function CardDialog({ volunteer }: { volunteer: VolunteerWithId }) {
+  const id = String(volunteer.id);
+  const [editMode, setEditMode] = useState(false);
+  const [override, setOverride] = useState<CardOverride>(() =>
+    loadCardOverride(id),
+  );
+  const [editForm, setEditForm] = useState<CardOverride>(() =>
+    loadCardOverride(id),
+  );
+
+  const handleEdit = () => {
+    setEditForm({ ...override });
+    setEditMode(true);
+  };
+
+  const handleSave = () => {
+    saveCardOverride(id, editForm);
+    setOverride({ ...editForm });
+    setEditMode(false);
+    toast.success("Card updated successfully");
+  };
+
+  const handleCancel = () => {
+    setEditForm({ ...override });
+    setEditMode(false);
+  };
+
   const handlePrint = () => {
     const el = document.getElementById("volunteer-card-print");
     if (!el) return;
@@ -214,21 +265,155 @@ function CardDialog({ volunteer }: { volunteer: VolunteerWithId }) {
   return (
     <DialogContent data-ocid="card.dialog" className="max-w-sm">
       <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
-          <CreditCard size={17} className="text-primary" />
-          Volunteer Card
-        </DialogTitle>
+        <div className="flex items-center justify-between">
+          <DialogTitle className="flex items-center gap-2">
+            <CreditCard size={17} className="text-primary" />
+            Volunteer Card
+          </DialogTitle>
+          {!editMode ? (
+            <Button
+              data-ocid="card.edit_button"
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-muted-foreground hover:text-primary h-8"
+              onClick={handleEdit}
+            >
+              <Pencil size={13} />
+              Edit
+            </Button>
+          ) : (
+            <Button
+              data-ocid="card.cancel_button"
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-muted-foreground h-8"
+              onClick={handleCancel}
+            >
+              <X size={13} />
+              Cancel
+            </Button>
+          )}
+        </div>
       </DialogHeader>
-      <div className="flex flex-col items-center gap-5">
-        <VolunteerCard volunteer={volunteer} />
-        <Button
-          data-ocid="card.print.button"
-          className="w-full gap-2"
-          onClick={handlePrint}
-        >
-          <Printer size={15} />
-          Print / Download Card
-        </Button>
+
+      <div className="flex flex-col items-center gap-4">
+        {/* Card Preview */}
+        <VolunteerCard
+          volunteer={volunteer}
+          designation={override.designation}
+          overrideName={override.name}
+          overridePhone={override.phone}
+          overrideLocation={override.location}
+          overrideStatus={override.status}
+        />
+
+        {/* Edit Form */}
+        {editMode && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full space-y-3 border border-border rounded-xl p-4 bg-muted/20"
+          >
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Edit Card Details
+            </p>
+
+            <div className="space-y-1">
+              <Label htmlFor="card-designation" className="text-xs">
+                Designation
+              </Label>
+              <Input
+                data-ocid="card.designation.input"
+                id="card-designation"
+                placeholder="e.g. Field Volunteer, Team Leader"
+                value={editForm.designation ?? ""}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, designation: e.target.value }))
+                }
+                className="h-8 text-sm"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="card-name" className="text-xs">
+                Name
+              </Label>
+              <Input
+                data-ocid="card.name.input"
+                id="card-name"
+                placeholder={volunteer.name}
+                value={editForm.name ?? volunteer.name}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, name: e.target.value }))
+                }
+                className="h-8 text-sm"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="card-phone" className="text-xs">
+                Phone
+              </Label>
+              <Input
+                data-ocid="card.phone.input"
+                id="card-phone"
+                placeholder={volunteer.phone}
+                value={editForm.phone ?? volunteer.phone}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, phone: e.target.value }))
+                }
+                className="h-8 text-sm"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="card-location" className="text-xs">
+                Location
+              </Label>
+              <Input
+                data-ocid="card.location.input"
+                id="card-location"
+                placeholder={volunteer.location}
+                value={editForm.location ?? volunteer.location}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, location: e.target.value }))
+                }
+                className="h-8 text-sm"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Active Status</Label>
+              <Switch
+                data-ocid="card.status.switch"
+                checked={editForm.status ?? volunteer.status}
+                onCheckedChange={(v) =>
+                  setEditForm((p) => ({ ...p, status: v }))
+                }
+              />
+            </div>
+
+            <Button
+              data-ocid="card.save_button"
+              className="w-full h-8 text-sm"
+              onClick={handleSave}
+            >
+              Save Changes
+            </Button>
+          </motion.div>
+        )}
+
+        {/* Print button */}
+        {!editMode && (
+          <Button
+            data-ocid="card.print.button"
+            className="w-full gap-2"
+            onClick={handlePrint}
+          >
+            <Printer size={15} />
+            Print / Download Card
+          </Button>
+        )}
       </div>
     </DialogContent>
   );
@@ -250,6 +435,19 @@ export default function VolunteersPage() {
   const [search, setSearch] = useState("");
   const [attendanceOpen, setAttendanceOpen] = useState<string | null>(null);
   const [cardOpen, setCardOpen] = useState<string | null>(null);
+  const [pendingCardFor, setPendingCardFor] = useState<string | null>(null);
+
+  // Auto-open card for newly added volunteer
+  useEffect(() => {
+    if (!pendingCardFor || !volunteers) return;
+    const found = (volunteers as VolunteerWithId[]).find(
+      (v) => v.name === pendingCardFor,
+    );
+    if (found) {
+      setCardOpen(String(found.id));
+      setPendingCardFor(null);
+    }
+  }, [volunteers, pendingCardFor]);
 
   const filtered = ((volunteers ?? []) as VolunteerWithId[]).filter(
     (v) =>
@@ -260,15 +458,17 @@ export default function VolunteersPage() {
   const handleAdd = async () => {
     if (!form.name.trim()) return;
     try {
+      const name = form.name.trim();
       await addMutation.mutateAsync({
-        name: form.name.trim(),
+        name,
         phone: form.phone.trim(),
         location: form.location.trim(),
         status: form.status,
       });
-      toast.success("Volunteer added!");
+      toast.success("Volunteer added! ID card ready.");
       setForm({ name: "", phone: "", location: "", status: true });
       setOpen(false);
+      setPendingCardFor(name);
     } catch {
       toast.error("Failed to add volunteer");
     }
