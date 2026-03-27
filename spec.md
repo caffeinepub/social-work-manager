@@ -1,25 +1,29 @@
 # Social Work Manager
 
 ## Current State
-App has admin panel with login (Internet Identity), dashboard, volunteers management, tasks management, map view, and announcements. Admin can add/delete volunteers and tasks.
+- Admin panel: Login, Dashboard, Volunteers (add/delete), Tasks, Map, Announcements
+- Volunteer panel: Login by name, view tasks/announcements/profile
+- No attendance tracking exists
+- No volunteer card feature exists
 
 ## Requested Changes (Diff)
 
 ### Add
-- Volunteer login page: phone number based login (local state, no backend)
-- Volunteer portal: separate view after volunteer login with their name, assigned tasks, and announcements
-- VolunteerPortalPage: shows volunteer's assigned tasks (filtered by name) and announcements
-- Landing page to choose between Admin Login or Volunteer Login
+- **Attendance Module (Admin):** In VolunteersPage, add an "Attendance" button per volunteer. Admin can mark Present/Absent for today's date. Show attendance history per volunteer (date-wise log stored in localStorage).
+- **Attendance View (Volunteer Portal):** In VolunteerPortalPage, add an "My Attendance" section showing the volunteer's attendance history.
+- **Digital Volunteer Card:** When a volunteer is added (or from their profile), display/generate a printable digital volunteer card showing: Name, Phone, Location, Volunteer ID (auto-generated), Join Date, Status, and organization name "Social Work Manager". Card should have a professional card design with print/download option.
 
 ### Modify
-- App.tsx: add volunteer session state (volunteerName + phone), route to volunteer portal or admin panel based on login type
-- LoginPage: convert to a landing page showing two options — Admin Login and Volunteer Login
+- VolunteersPage: Add attendance marking button per volunteer row
+- VolunteerPortalPage: Add attendance history section
+- App.tsx: Add "attendance" page or modal support if needed
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Create VolunteerLoginPage.tsx: simple form with name + phone login (matches against volunteers list from backend)
-2. Create VolunteerPortalPage.tsx: shows volunteer's assigned tasks and all announcements; no edit/delete buttons
-3. Update LoginPage.tsx to show two cards: Admin Login and Volunteer Login
-4. Update App.tsx: add `volunteerSession` state, route to VolunteerPortalPage when logged in as volunteer
+1. Create attendance store in localStorage (key: `volunteer_attendance`, value: `{volunteerId: [{date, status}]}`)
+2. In VolunteersPage, add "Mark Attendance" button that opens a dialog to mark Present/Absent for today, show today's status on volunteer row
+3. Create VolunteerCard component: styled card with volunteer info, ID (VOL-XXXX), join date, org logo area, print CSS
+4. In VolunteersPage, add "View Card" button per volunteer that opens the digital card in a dialog with print option
+5. In VolunteerPortalPage, add "My Attendance" section pulling from localStorage

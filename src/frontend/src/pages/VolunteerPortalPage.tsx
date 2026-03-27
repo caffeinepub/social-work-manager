@@ -1,10 +1,12 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Bell,
+  CalendarCheck,
   CheckCircle2,
   Clock,
   LogOut,
@@ -13,6 +15,7 @@ import {
   User,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useMemo } from "react";
 import type { Volunteer } from "../backend";
 import { TaskPriority, TaskStatus } from "../backend";
 import { useListAnnouncements, useListTasks } from "../hooks/useQueries";
@@ -46,6 +49,28 @@ const priorityColor: Record<string, string> = {
   [TaskPriority.high]: "bg-red-100 text-red-700",
 };
 
+type AttendanceEntry = { date: string; status: "present" | "absent" };
+
+function getMyAttendance(name: string): AttendanceEntry[] {
+  try {
+    const store: Record<string, AttendanceEntry[]> = JSON.parse(
+      localStorage.getItem("volunteer_attendance") ?? "{}",
+    );
+    // find by name match across all IDs
+    // Volunteers page stores by id; we need to search by name
+    // Actually attendance is stored by ID, so we return empty here unless
+    // we can cross-reference. We'll store a name->id map in localStorage too.
+    const nameMap: Record<string, string> = JSON.parse(
+      localStorage.getItem("volunteer_name_id_map") ?? "{}",
+    );
+    const id = nameMap[name.toLowerCase()];
+    if (!id) return [];
+    return store[id] ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export default function VolunteerPortalPage({ volunteer, onLogout }: Props) {
   const { data: allTasks, isLoading: tasksLoading } = useListTasks();
   const { data: announcements, isLoading: announcementsLoading } =
@@ -54,6 +79,13 @@ export default function VolunteerPortalPage({ volunteer, onLogout }: Props) {
   const myTasks = (allTasks ?? []).filter(
     (t) => t.assignedTo.toLowerCase() === volunteer.name.toLowerCase(),
   );
+
+  const attendance = useMemo(
+    () => getMyAttendance(volunteer.name),
+    [volunteer.name],
+  );
+  const presentCount = attendance.filter((e) => e.status === "present").length;
+  const absentCount = attendance.filter((e) => e.status === "absent").length;
 
   return (
     <div className="min-h-screen bg-background">
@@ -117,11 +149,88 @@ export default function VolunteerPortalPage({ volunteer, onLogout }: Props) {
           </Card>
         </motion.div>
 
+        {/* My Attendance */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.08 }}
+        >
+          <Card data-ocid="volunteer_portal.attendance.card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <CalendarCheck size={16} className="text-primary" />
+                My Attendance
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Summary */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-green-50 border border-green-200 p-3 text-center">
+                  <p className="text-2xl font-bold text-green-700">
+                    {presentCount}
+                  </p>
+                  <p className="text-xs text-green-600 mt-0.5">Days Present</p>
+                </div>
+                <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-center">
+                  <p className="text-2xl font-bold text-red-700">
+                    {absentCount}
+                  </p>
+                  <p className="text-xs text-red-600 mt-0.5">Days Absent</p>
+                </div>
+              </div>
+
+              {/* History */}
+              {attendance.length === 0 ? (
+                <div
+                  data-ocid="volunteer_portal.attendance.empty_state"
+                  className="text-center py-6 text-muted-foreground text-sm"
+                >
+                  <CalendarCheck
+                    size={28}
+                    className="mx-auto mb-2 opacity-30"
+                  />
+                  No attendance records yet.
+                </div>
+              ) : (
+                <ScrollArea className="h-40">
+                  <div className="space-y-1.5 pr-2">
+                    {attendance.map((e, i) => (
+                      <div
+                        key={e.date}
+                        data-ocid={`volunteer_portal.attendance.item.${i + 1}`}
+                        className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-muted/40"
+                      >
+                        <span className="text-sm text-foreground">
+                          {new Date(e.date).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={
+                            e.status === "present"
+                              ? "bg-green-100 text-green-700 border-green-200 text-xs"
+                              : "bg-red-100 text-red-700 border-red-200 text-xs"
+                          }
+                        >
+                          {e.status === "present" ? "Present" : "Absent"}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
         {/* My Tasks */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.1 }}
+          transition={{ duration: 0.35, delay: 0.16 }}
         >
           <Card>
             <CardHeader className="pb-3">
@@ -186,7 +295,7 @@ export default function VolunteerPortalPage({ volunteer, onLogout }: Props) {
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.2 }}
+          transition={{ duration: 0.35, delay: 0.24 }}
         >
           <Card>
             <CardHeader className="pb-3">
@@ -221,11 +330,9 @@ export default function VolunteerPortalPage({ volunteer, onLogout }: Props) {
                       data-ocid={`announcements.item.${idx + 1}`}
                       className="border border-border rounded-xl p-3 space-y-1"
                     >
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-sm text-foreground">
-                          {ann.title}
-                        </p>
-                      </div>
+                      <p className="font-medium text-sm text-foreground">
+                        {ann.title}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {ann.content}
                       </p>

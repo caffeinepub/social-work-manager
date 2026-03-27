@@ -10,13 +10,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
+  CalendarCheck,
+  CreditCard,
   Loader2,
   MapPin,
   Phone,
   Plus,
+  Printer,
   Trash2,
   UserPlus,
   Users,
@@ -24,12 +28,213 @@ import {
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import type { Volunteer } from "../backend";
+import VolunteerCard from "../components/VolunteerCard";
 import {
   useAddVolunteer,
   useDeleteVolunteer,
   useListVolunteers,
 } from "../hooks/useQueries";
 
+type VolunteerWithId = Volunteer & { id: bigint };
+
+// ---------- Attendance helpers ----------
+type AttendanceStatus = "present" | "absent";
+interface AttendanceEntry {
+  date: string;
+  status: AttendanceStatus;
+}
+type AttendanceStore = Record<string, AttendanceEntry[]>;
+
+const STORAGE_KEY = "volunteer_attendance";
+
+function loadAttendance(): AttendanceStore {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveAttendance(store: AttendanceStore) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+}
+
+function getVolunteerAttendance(id: string): AttendanceEntry[] {
+  return loadAttendance()[id] ?? [];
+}
+
+function markAttendance(id: string, status: AttendanceStatus) {
+  const store = loadAttendance();
+  const today = new Date().toISOString().slice(0, 10);
+  const entries = (store[id] ?? []).filter((e) => e.date !== today);
+  entries.unshift({ date: today, status });
+  store[id] = entries;
+  saveAttendance(store);
+}
+
+function todayStatus(id: string): AttendanceStatus | null {
+  const today = new Date().toISOString().slice(0, 10);
+  const entry = getVolunteerAttendance(id).find((e) => e.date === today);
+  return entry?.status ?? null;
+}
+
+// ---------- Attendance Dialog ----------
+function AttendanceDialog({ volunteer }: { volunteer: VolunteerWithId }) {
+  const id = String(volunteer.id);
+  const today = new Date().toISOString().slice(0, 10);
+  const [, forceUpdate] = useState(0);
+
+  const refresh = () => forceUpdate((n) => n + 1);
+  const entries = getVolunteerAttendance(id);
+  const currentToday = entries.find((e) => e.date === today);
+
+  const handle = (status: AttendanceStatus) => {
+    markAttendance(id, status);
+    refresh();
+    toast.success(`Marked ${status} for ${volunteer.name}`);
+  };
+
+  return (
+    <DialogContent data-ocid="attendance.dialog" className="max-w-sm">
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <CalendarCheck size={17} className="text-primary" />
+          Attendance — {volunteer.name}
+        </DialogTitle>
+      </DialogHeader>
+
+      <div className="space-y-4">
+        {/* Today */}
+        <div className="rounded-xl border border-border p-4 bg-muted/30 space-y-3">
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">
+              Today
+            </p>
+            <p className="font-semibold text-foreground">
+              {new Date().toLocaleDateString("en-IN", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </p>
+          </div>
+          {currentToday && (
+            <div className="text-center">
+              <Badge
+                className={
+                  currentToday.status === "present"
+                    ? "bg-green-100 text-green-700 border-green-200"
+                    : "bg-red-100 text-red-700 border-red-200"
+                }
+                variant="outline"
+              >
+                {currentToday.status === "present" ? "✓ Present" : "✗ Absent"}
+              </Badge>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button
+              data-ocid="attendance.present.button"
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+              size="sm"
+              onClick={() => handle("present")}
+            >
+              ✓ Mark Present
+            </Button>
+            <Button
+              data-ocid="attendance.absent.button"
+              variant="outline"
+              className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+              size="sm"
+              onClick={() => handle("absent")}
+            >
+              ✗ Mark Absent
+            </Button>
+          </div>
+        </div>
+
+        {/* History */}
+        {entries.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              History
+            </p>
+            <ScrollArea className="h-44">
+              <div className="space-y-1.5 pr-2">
+                {entries.map((e, i) => (
+                  <div
+                    key={e.date}
+                    data-ocid={`attendance.item.${i + 1}`}
+                    className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-muted/40"
+                  >
+                    <span className="text-sm text-foreground">
+                      {new Date(e.date).toLocaleDateString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={
+                        e.status === "present"
+                          ? "bg-green-100 text-green-700 border-green-200 text-xs"
+                          : "bg-red-100 text-red-700 border-red-200 text-xs"
+                      }
+                    >
+                      {e.status === "present" ? "Present" : "Absent"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+      </div>
+    </DialogContent>
+  );
+}
+
+// ---------- Card Dialog ----------
+function CardDialog({ volunteer }: { volunteer: VolunteerWithId }) {
+  const handlePrint = () => {
+    const el = document.getElementById("volunteer-card-print");
+    if (!el) return;
+    const html = `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f0f0f0;}@media print{body{background:white;}}</style></head><body>${el.outerHTML}</body></html>`;
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
+  };
+
+  return (
+    <DialogContent data-ocid="card.dialog" className="max-w-sm">
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <CreditCard size={17} className="text-primary" />
+          Volunteer Card
+        </DialogTitle>
+      </DialogHeader>
+      <div className="flex flex-col items-center gap-5">
+        <VolunteerCard volunteer={volunteer} />
+        <Button
+          data-ocid="card.print.button"
+          className="w-full gap-2"
+          onClick={handlePrint}
+        >
+          <Printer size={15} />
+          Print / Download Card
+        </Button>
+      </div>
+    </DialogContent>
+  );
+}
+
+// ---------- Main Page ----------
 export default function VolunteersPage() {
   const { data: volunteers, isLoading } = useListVolunteers();
   const addMutation = useAddVolunteer();
@@ -43,8 +248,10 @@ export default function VolunteersPage() {
     status: true,
   });
   const [search, setSearch] = useState("");
+  const [attendanceOpen, setAttendanceOpen] = useState<string | null>(null);
+  const [cardOpen, setCardOpen] = useState<string | null>(null);
 
-  const filtered = (volunteers ?? []).filter(
+  const filtered = ((volunteers ?? []) as VolunteerWithId[]).filter(
     (v) =>
       v.name.toLowerCase().includes(search.toLowerCase()) ||
       v.location.toLowerCase().includes(search.toLowerCase()),
@@ -74,6 +281,13 @@ export default function VolunteersPage() {
     } catch {
       toast.error("Failed to delete volunteer");
     }
+  };
+
+  const getAttendanceDot = (v: VolunteerWithId) => {
+    const status = todayStatus(String(v.id));
+    if (status === "present") return "bg-green-500";
+    if (status === "absent") return "bg-red-500";
+    return "bg-gray-300";
   };
 
   return (
@@ -206,13 +420,22 @@ export default function VolunteersPage() {
                 <div
                   key={String(v.id)}
                   data-ocid={`volunteers.item.${i + 1}`}
-                  className="flex items-center gap-3 p-3 rounded-xl border border-border hover:bg-muted/30 transition-colors"
+                  className="flex items-center gap-2 p-3 rounded-xl border border-border hover:bg-muted/30 transition-colors"
                 >
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm font-bold text-primary">
-                      {v.name.slice(0, 1).toUpperCase()}
-                    </span>
+                  {/* Avatar + attendance dot */}
+                  <div className="relative flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-sm font-bold text-primary">
+                        {v.name.slice(0, 1).toUpperCase()}
+                      </span>
+                    </div>
+                    <span
+                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background ${getAttendanceDot(v)}`}
+                      title="Today's attendance"
+                    />
                   </div>
+
+                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground truncate">
                       {v.name}
@@ -232,6 +455,7 @@ export default function VolunteersPage() {
                       )}
                     </div>
                   </div>
+
                   <Badge
                     variant="outline"
                     className={
@@ -242,6 +466,48 @@ export default function VolunteersPage() {
                   >
                     {v.status ? "Active" : "Inactive"}
                   </Badge>
+
+                  {/* Attendance button */}
+                  <Dialog
+                    open={attendanceOpen === String(v.id)}
+                    onOpenChange={(o) =>
+                      setAttendanceOpen(o ? String(v.id) : null)
+                    }
+                  >
+                    <DialogTrigger asChild>
+                      <Button
+                        data-ocid={`volunteers.attendance.button.${i + 1}`}
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-blue-600 flex-shrink-0"
+                        title="Attendance"
+                      >
+                        <CalendarCheck size={15} />
+                      </Button>
+                    </DialogTrigger>
+                    <AttendanceDialog volunteer={v} />
+                  </Dialog>
+
+                  {/* Card button */}
+                  <Dialog
+                    open={cardOpen === String(v.id)}
+                    onOpenChange={(o) => setCardOpen(o ? String(v.id) : null)}
+                  >
+                    <DialogTrigger asChild>
+                      <Button
+                        data-ocid={`volunteers.card.button.${i + 1}`}
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-primary flex-shrink-0"
+                        title="Volunteer Card"
+                      >
+                        <CreditCard size={15} />
+                      </Button>
+                    </DialogTrigger>
+                    <CardDialog volunteer={v} />
+                  </Dialog>
+
+                  {/* Delete button */}
                   <Button
                     data-ocid={`volunteers.delete_button.${i + 1}`}
                     variant="ghost"
