@@ -15,7 +15,7 @@ import {
   User,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Volunteer } from "../backend";
 import { TaskPriority, TaskStatus } from "../backend";
 import { useListAnnouncements, useListTasks } from "../hooks/useQueries";
@@ -51,24 +51,31 @@ const priorityColor: Record<string, string> = {
 
 type AttendanceEntry = { date: string; status: "present" | "absent" };
 
-function getMyAttendance(name: string): AttendanceEntry[] {
+function getSelfAttendance(name: string): AttendanceEntry[] {
   try {
     const store: Record<string, AttendanceEntry[]> = JSON.parse(
-      localStorage.getItem("volunteer_attendance") ?? "{}",
+      localStorage.getItem("volunteer_self_attendance") ?? "{}",
     );
-    // find by name match across all IDs
-    // Volunteers page stores by id; we need to search by name
-    // Actually attendance is stored by ID, so we return empty here unless
-    // we can cross-reference. We'll store a name->id map in localStorage too.
-    const nameMap: Record<string, string> = JSON.parse(
-      localStorage.getItem("volunteer_name_id_map") ?? "{}",
-    );
-    const id = nameMap[name.toLowerCase()];
-    if (!id) return [];
-    return store[id] ?? [];
+    return store[name] ?? [];
   } catch {
     return [];
   }
+}
+
+function saveSelfAttendance(name: string, entries: AttendanceEntry[]) {
+  try {
+    const store: Record<string, AttendanceEntry[]> = JSON.parse(
+      localStorage.getItem("volunteer_self_attendance") ?? "{}",
+    );
+    store[name] = entries;
+    localStorage.setItem("volunteer_self_attendance", JSON.stringify(store));
+  } catch {
+    // ignore
+  }
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export default function VolunteerPortalPage({ volunteer, onLogout }: Props) {
@@ -80,12 +87,29 @@ export default function VolunteerPortalPage({ volunteer, onLogout }: Props) {
     (t) => t.assignedTo.toLowerCase() === volunteer.name.toLowerCase(),
   );
 
-  const attendance = useMemo(
-    () => getMyAttendance(volunteer.name),
-    [volunteer.name],
+  const [attendance, setAttendance] = useState<AttendanceEntry[]>(() =>
+    getSelfAttendance(volunteer.name),
   );
+
   const presentCount = attendance.filter((e) => e.status === "present").length;
   const absentCount = attendance.filter((e) => e.status === "absent").length;
+
+  const todayEntry = useMemo(
+    () => attendance.find((e) => e.date === todayStr()),
+    [attendance],
+  );
+
+  function markAttendance(status: "present" | "absent") {
+    const today = todayStr();
+    setAttendance((prev) => {
+      const filtered = prev.filter((e) => e.date !== today);
+      const updated = [{ date: today, status }, ...filtered].sort((a, b) =>
+        b.date.localeCompare(a.date),
+      );
+      saveSelfAttendance(volunteer.name, updated);
+      return updated;
+    });
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -160,9 +184,45 @@ export default function VolunteerPortalPage({ volunteer, onLogout }: Props) {
               <CardTitle className="text-base flex items-center gap-2">
                 <CalendarCheck size={16} className="text-primary" />
                 My Attendance
+                {todayEntry && (
+                  <Badge
+                    variant="outline"
+                    className={
+                      todayEntry.status === "present"
+                        ? "ml-auto bg-green-100 text-green-700 border-green-200 text-xs"
+                        : "ml-auto bg-red-100 text-red-700 border-red-200 text-xs"
+                    }
+                  >
+                    Today:{" "}
+                    {todayEntry.status === "present" ? "Present ✓" : "Absent ✗"}
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {/* Mark Attendance Buttons */}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  data-ocid="volunteer_portal.attendance.present.button"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                  onClick={() => markAttendance("present")}
+                  disabled={todayEntry?.status === "present"}
+                >
+                  ✓ Mark Present
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  data-ocid="volunteer_portal.attendance.absent.button"
+                  className="flex-1 border-red-300 text-red-600 hover:bg-red-50 gap-1.5"
+                  onClick={() => markAttendance("absent")}
+                  disabled={todayEntry?.status === "absent"}
+                >
+                  ✗ Mark Absent
+                </Button>
+              </div>
+
               {/* Summary */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-green-50 border border-green-200 p-3 text-center">
@@ -189,7 +249,7 @@ export default function VolunteerPortalPage({ volunteer, onLogout }: Props) {
                     size={28}
                     className="mx-auto mb-2 opacity-30"
                   />
-                  No attendance records yet.
+                  No attendance records yet. Mark your attendance above.
                 </div>
               ) : (
                 <ScrollArea className="h-40">
