@@ -33,7 +33,7 @@ export default function MapPage() {
             >
               <iframe
                 title="Field Map"
-                src="https://www.openstreetmap.org/export/embed.html?bbox=78.06,29.88,78.26,30.00&layer=mapnik&marker=29.94,78.16"
+                src="https://www.openstreetmap.org/export/embed.html?bbox=77.955,29.853,77.995,29.874&layer=mapnik&marker=29.863557,77.975091"
                 style={{ width: "100%", height: "100%", border: "none" }}
                 loading="lazy"
                 allowFullScreen
