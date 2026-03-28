@@ -13,22 +13,23 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import html2canvas from "html2canvas";
 import {
   CalendarCheck,
   CreditCard,
+  Download,
   Loader2,
   MapPin,
-  Pencil,
   Phone,
   Plus,
   Printer,
   Trash2,
+  Upload,
   UserPlus,
   Users,
-  X,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Volunteer } from "../backend";
 import VolunteerCard from "../components/VolunteerCard";
@@ -42,11 +43,10 @@ type VolunteerWithId = Volunteer & { id: bigint };
 
 // ---------- Card override storage ----------
 interface CardOverride {
-  designation?: string;
   name?: string;
   phone?: string;
-  location?: string;
-  status?: boolean;
+  fatherName?: string;
+  photoUrl?: string;
 }
 
 const cardKey = (id: string) => `volunteer_card_${id}`;
@@ -225,35 +225,21 @@ function AttendanceDialog({ volunteer }: { volunteer: VolunteerWithId }) {
 // ---------- Card Dialog ----------
 function CardDialog({ volunteer }: { volunteer: VolunteerWithId }) {
   const id = String(volunteer.id);
-  const [editMode, setEditMode] = useState(false);
-  const [override, setOverride] = useState<CardOverride>(() =>
-    loadCardOverride(id),
-  );
+  const volunteerId = `JMVVOL-${String(volunteer.id).padStart(3, "0")}`;
   const [editForm, setEditForm] = useState<CardOverride>(() =>
     loadCardOverride(id),
   );
-
-  const handleEdit = () => {
-    setEditForm({ ...override });
-    setEditMode(true);
-  };
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
     saveCardOverride(id, editForm);
-    setOverride({ ...editForm });
-    setEditMode(false);
     toast.success("Card updated successfully");
-  };
-
-  const handleCancel = () => {
-    setEditForm({ ...override });
-    setEditMode(false);
   };
 
   const handlePrint = () => {
     const el = document.getElementById("volunteer-card-print");
     if (!el) return;
-    const html = `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f0f0f0;}@media print{body{background:white;}}</style></head><body>${el.outerHTML}</body></html>`;
+    const html = `<!DOCTYPE html><html><head><style>*{box-sizing:border-box;}body{margin:0;padding:20px;display:flex;align-items:flex-start;justify-content:center;min-height:100vh;background:#e8e8e8;font-family:'Segoe UI',Arial,sans-serif;}@media print{body{background:white;padding:0;}}</style></head><body>${el.outerHTML}</body></html>`;
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(html);
@@ -262,81 +248,64 @@ function CardDialog({ volunteer }: { volunteer: VolunteerWithId }) {
     setTimeout(() => win.print(), 300);
   };
 
+  const handleDownload = async () => {
+    const el = document.getElementById("volunteer-card-print");
+    if (!el) return;
+    try {
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#e8e8e8",
+      });
+      const link = document.createElement("a");
+      link.download = `${volunteerId}-card.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch {
+      toast.error("Download failed. Please try Print instead.");
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setEditForm((p) => ({ ...p, photoUrl: dataUrl }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <DialogContent data-ocid="card.dialog" className="max-w-sm">
       <DialogHeader>
-        <div className="flex items-center justify-between">
-          <DialogTitle className="flex items-center gap-2">
-            <CreditCard size={17} className="text-primary" />
-            Volunteer Card
-          </DialogTitle>
-          {!editMode ? (
-            <Button
-              data-ocid="card.edit_button"
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 text-muted-foreground hover:text-primary h-8"
-              onClick={handleEdit}
-            >
-              <Pencil size={13} />
-              Edit
-            </Button>
-          ) : (
-            <Button
-              data-ocid="card.cancel_button"
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 text-muted-foreground h-8"
-              onClick={handleCancel}
-            >
-              <X size={13} />
-              Cancel
-            </Button>
-          )}
-        </div>
+        <DialogTitle className="flex items-center gap-2">
+          <CreditCard size={17} className="text-primary" />
+          Volunteer ID Card
+        </DialogTitle>
       </DialogHeader>
 
-      <div className="flex flex-col items-center gap-4">
-        {/* Card Preview */}
-        <VolunteerCard
-          volunteer={volunteer}
-          designation={override.designation}
-          overrideName={override.name}
-          overridePhone={override.phone}
-          overrideLocation={override.location}
-          overrideStatus={override.status}
-        />
+      <ScrollArea className="max-h-[75vh]">
+        <div className="flex flex-col items-center gap-4 pb-2">
+          {/* Live Card Preview — updates as user types */}
+          <VolunteerCard
+            volunteer={volunteer}
+            overrideName={editForm.name || volunteer.name}
+            overridePhone={editForm.phone || volunteer.phone}
+            fatherName={editForm.fatherName || ""}
+            photoUrl={editForm.photoUrl}
+          />
 
-        {/* Edit Form */}
-        {editMode && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="w-full space-y-3 border border-border rounded-xl p-4 bg-muted/20"
-          >
+          {/* Edit Form */}
+          <div className="w-full space-y-3 border border-border rounded-xl p-4 bg-muted/20">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Edit Card Details
             </p>
 
             <div className="space-y-1">
-              <Label htmlFor="card-designation" className="text-xs">
-                Designation
-              </Label>
-              <Input
-                data-ocid="card.designation.input"
-                id="card-designation"
-                placeholder="e.g. Field Volunteer, Team Leader"
-                value={editForm.designation ?? ""}
-                onChange={(e) =>
-                  setEditForm((p) => ({ ...p, designation: e.target.value }))
-                }
-                className="h-8 text-sm"
-              />
-            </div>
-
-            <div className="space-y-1">
               <Label htmlFor="card-name" className="text-xs">
-                Name
+                Volunteer Name
               </Label>
               <Input
                 data-ocid="card.name.input"
@@ -351,8 +320,24 @@ function CardDialog({ volunteer }: { volunteer: VolunteerWithId }) {
             </div>
 
             <div className="space-y-1">
+              <Label htmlFor="card-father" className="text-xs">
+                Father Name
+              </Label>
+              <Input
+                data-ocid="card.fathername.input"
+                id="card-father"
+                placeholder="Enter father's name"
+                value={editForm.fatherName ?? ""}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, fatherName: e.target.value }))
+                }
+                className="h-8 text-sm"
+              />
+            </div>
+
+            <div className="space-y-1">
               <Label htmlFor="card-phone" className="text-xs">
-                Phone
+                Mobile Number
               </Label>
               <Input
                 data-ocid="card.phone.input"
@@ -366,55 +351,77 @@ function CardDialog({ volunteer }: { volunteer: VolunteerWithId }) {
               />
             </div>
 
+            {/* Photo Upload */}
             <div className="space-y-1">
-              <Label htmlFor="card-location" className="text-xs">
-                Location
-              </Label>
-              <Input
-                data-ocid="card.location.input"
-                id="card-location"
-                placeholder={volunteer.location}
-                value={editForm.location ?? volunteer.location}
-                onChange={(e) =>
-                  setEditForm((p) => ({ ...p, location: e.target.value }))
-                }
-                className="h-8 text-sm"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">Active Status</Label>
-              <Switch
-                data-ocid="card.status.switch"
-                checked={editForm.status ?? volunteer.status}
-                onCheckedChange={(v) =>
-                  setEditForm((p) => ({ ...p, status: v }))
-                }
-              />
+              <Label className="text-xs">Profile Photo</Label>
+              <div className="flex items-center gap-3">
+                {editForm.photoUrl && (
+                  <img
+                    src={editForm.photoUrl}
+                    alt="Preview"
+                    style={{
+                      width: 40,
+                      height: 40,
+                      objectFit: "cover",
+                      borderRadius: 6,
+                      border: "1.5px solid #2e7d32",
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <Button
+                  data-ocid="card.upload_button"
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 text-xs h-8"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload size={13} />
+                  {editForm.photoUrl ? "Change Photo" : "Upload Photo"}
+                </Button>
+              </div>
             </div>
 
             <Button
               data-ocid="card.save_button"
-              className="w-full h-8 text-sm"
+              className="w-full h-9 text-sm font-semibold"
               onClick={handleSave}
             >
               Save Changes
             </Button>
-          </motion.div>
-        )}
+          </div>
 
-        {/* Print button */}
-        {!editMode && (
-          <Button
-            data-ocid="card.print.button"
-            className="w-full gap-2"
-            onClick={handlePrint}
-          >
-            <Printer size={15} />
-            Print / Download Card
-          </Button>
-        )}
-      </div>
+          {/* Print & Download buttons */}
+          <div className="w-full flex gap-2">
+            <Button
+              data-ocid="card.print.button"
+              className="flex-1 gap-2"
+              variant="outline"
+              onClick={handlePrint}
+            >
+              <Printer size={15} />
+              Print
+            </Button>
+            <Button
+              data-ocid="card.download.button"
+              className="flex-1 gap-2"
+              variant="default"
+              onClick={handleDownload}
+            >
+              <Download size={15} />
+              Download
+            </Button>
+          </div>
+        </div>
+      </ScrollArea>
     </DialogContent>
   );
 }
