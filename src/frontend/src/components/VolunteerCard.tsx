@@ -14,6 +14,9 @@ interface Props {
   photoUrl?: string;
 }
 
+const LOGO_PATH =
+  "/assets/uploads/file_00000000a4947208a2a4e276f0e9c7d2-019d3274-8c7c-73fa-86a2-b59de02ba460-1.webp";
+
 function QrPlaceholder({ seed }: { seed: number }) {
   const SIZE = 10;
   const cells: { key: string; filled: boolean }[] = [];
@@ -207,16 +210,28 @@ export default function VolunteerCard({
               gap: 5,
             }}
           >
+            {/* Logo replacing "SOCIAL WORK MANAGER" text */}
             <div
               style={{
-                fontSize: 10,
-                color: "rgba(255,255,255,0.65)",
-                fontWeight: 600,
-                letterSpacing: 1,
-                textTransform: "uppercase",
+                background: "rgba(255,255,255,0.95)",
+                borderRadius: 6,
+                padding: "3px 6px",
+                display: "flex",
+                alignItems: "center",
+                width: "fit-content",
+                marginBottom: 2,
               }}
             >
-              SOCIAL WORK MANAGER
+              <img
+                src={LOGO_PATH}
+                alt="Jamiat Model Village"
+                style={{
+                  maxHeight: 28,
+                  maxWidth: 120,
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
             </div>
             <div
               style={{
@@ -396,6 +411,7 @@ export default function VolunteerCard({
 
         <div style={{ height: 1, background: "#e8e8e8", margin: "0 16px" }} />
 
+        {/* Back footer with logo */}
         <div
           style={{
             background: "linear-gradient(90deg, #eef4fb 0%, #e8f5f3 100%)",
@@ -406,23 +422,18 @@ export default function VolunteerCard({
             gap: 8,
           }}
         >
-          <div
+          <img
+            src={LOGO_PATH}
+            alt="Jamiat Model Village"
             style={{
-              width: 26,
-              height: 26,
-              borderRadius: "50%",
-              background: "linear-gradient(135deg, #1a3a5c 0%, #1a7a6e 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 11,
-              color: "#fff",
-              fontWeight: 900,
+              width: 32,
+              height: 32,
+              objectFit: "contain",
               flexShrink: 0,
+              borderRadius: 4,
+              background: "#fff",
             }}
-          >
-            J
-          </div>
+          />
           <div>
             <div style={{ fontSize: 10, fontWeight: 800, color: "#1a3a5c" }}>
               Jamiat Model Village
